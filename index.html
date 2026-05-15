@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DEMOLITION LAB // sandbox destroyer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <!-- Top HUD: title + stats -->
+  <header class="hud hud-top">
+    <div class="brand">
+      <div class="brand-mark">◢◣</div>
+      <div class="brand-text">
+        <div class="brand-title">DEMOLITION LAB</div>
+        <div class="brand-sub">sandbox destroyer · v0.1</div>
+      </div>
+    </div>
+    <div class="meter">
+      <div class="meter-stats">
+        <span>parts <b id="stat-parts">0</b></span>
+        <span>destroyed <b id="stat-destroyed">0</b></span>
+        <span>shots <b id="stat-shots">0</b></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Left rail: weapons + disasters -->
+  <aside class="hud hud-left">
+    <div class="rail-title">WEAPONS</div>
+    <div id="weapon-list" class="rail-list"></div>
+    <div class="rail-divider"></div>
+    <div class="rail-title">DISASTERS</div>
+    <div id="disaster-list" class="rail-list"></div>
+    <div class="rail-hint">[1–9,0] weapon · [Q–O] disaster · [H] hide HUD · shift+click target to add</div>
+  </aside>
+
+  <!-- Right rail: districts + structures -->
+  <aside class="hud hud-right">
+    <div class="rail-title">DISTRICTS</div>
+    <div id="district-list" class="rail-list"></div>
+    <div class="rail-divider"></div>
+    <div class="rail-title">TARGETS</div>
+    <div id="structure-list" class="rail-list"></div>
+    <button id="btn-clear" class="rail-btn">CLEAR ARENA</button>
+    <button id="btn-reset" class="rail-btn rail-btn-warn">RESET WORLD</button>
+  </aside>
+
+  <!-- Bottom HUD: tunables -->
+  <footer class="hud hud-bottom">
+    <div class="tune">
+      <label>GRAVITY <output id="g-out">1.00</output></label>
+      <input id="g-slider" type="range" min="-1.5" max="2.5" step="0.05" value="1">
+    </div>
+    <div class="tune">
+      <label>POWER <output id="p-out">35</output></label>
+      <input id="p-slider" type="range" min="10" max="80" step="1" value="35">
+    </div>
+    <div class="tune">
+      <label>INTENSITY <output id="i-out">5</output></label>
+      <input id="i-slider" type="range" min="1" max="10" step="1" value="5">
+    </div>
+    <div class="tune">
+      <label>SPEED <output id="speed-out">1.0×</output></label>
+      <input id="speed-slider" type="range" min="0.2" max="3" step="0.1" value="1">
+    </div>
+    <div class="tune">
+      <label>SCALE <output id="scale-out">2.0×</output></label>
+      <input id="scale-slider" type="range" min="0.8" max="3" step="0.1" value="2">
+    </div>
+    <div class="tune">
+      <label>DETAIL <output id="subdiv-out">1.4×</output></label>
+      <input id="subdiv-slider" type="range" min="0" max="3" step="0.1" value="1.4">
+    </div>
+    <div class="tune">
+      <label>DEBRIS CAP <output id="cap-out">500</output></label>
+      <input id="cap-slider" type="range" min="100" max="1200" step="50" value="500">
+    </div>
+    <div class="tune tune-toggle">
+      <label><input id="t-debris" type="checkbox" checked> debris</label>
+      <label><input id="t-trails" type="checkbox"> trails</label>
+      <label><input id="t-shake" type="checkbox" checked> shake</label>
+      <label><input id="t-slowmo" type="checkbox"> slow-mo [⏸]</label>
+    </div>
+    <div class="readout">
+      <span>FPS <b id="fps">--</b></span>
+      <span>BODIES <b id="bodies">0</b></span>
+    </div>
+  </footer>
+
+  <!-- Aim overlay (drawn by JS) -->
+  <div id="aim-readout" class="aim-readout"></div>
+
+  <!-- Boot toast -->
+  <div id="boot" class="boot">
+    <div class="boot-card">
+      <div class="boot-eyebrow">welcome to the</div>
+      <div class="boot-title">DEMOLITION LAB</div>
+      <div class="boot-rows">
+        <div><kbd>drag</kbd> aim &amp; fire</div>
+        <div><kbd>1–6</kbd> swap weapon</div>
+        <div><kbd>space</kbd> spawn target</div>
+        <div><kbd>R</kbd> reset arena</div>
+      </div>
+      <button id="boot-go" class="boot-go">ENTER LAB →</button>
+    </div>
+  </div>
+
+  <script src="demolition-lab.js"></script>
+</body>
+</html>
