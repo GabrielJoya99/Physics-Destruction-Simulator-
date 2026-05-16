@@ -191,26 +191,61 @@ const STRUCTURES = [
     }
   },
   {
-    id: 'house', name: 'HOUSE', glyph: '⌂', desc: 'brick walls · peak roof',
+    id: 'mansion', name: 'HAUNTED MANSION', glyph: '⌂', desc: 'twin towers · gothic hall · 5 floors',
     build(state) {
       const { groundY, centerX } = state.arena;
-      const bodies = [];
-      const bw = 24, bh = 22;
-      for (let i = 0; i < 6; i++) {
-        bodies.push(makeBlock(centerX - 80, groundY - bh/2 - i*bh, bw, bh, 'brick'));
-        bodies.push(makeBlock(centerX + 80, groundY - bh/2 - i*bh, bw, bh, 'brick'));
-      }
-      for (let i = 1; i < 6; i++)
-        for (let c = -2; c <= 2; c++) {
-          if (i === 1 && Math.abs(c) <= 1) continue;
-          bodies.push(makeBlock(centerX + c*bw, groundY - bh/2 - i*bh, bw, bh, 'brick'));
-        }
-      const ceilY = groundY - 6*bh - 6;
-      for (let c = -3; c <= 3; c++) bodies.push(makeBlock(centerX + c*bw, ceilY, bw, 10, 'wood'));
-      let rw = 7*bw, ry = ceilY - 16;
-      for (let i = 0; i < 5; i++) { bodies.push(makeBlock(centerX, ry, rw, 14, 'wood')); rw -= 24; ry -= 14; }
-      for (let i = 0; i < 3; i++) bodies.push(makeBlock(centerX + 50, ceilY - 22 - i*18, 16, 18, 'brick'));
-      return bodies;
+      const B = [];
+      const W = 24, H = 20;
+      const base = groundY - 16;
+
+      // Wide concrete foundation
+      B.push(makeBlock(centerX, groundY - 8, 300, 16, 'concrete'));
+
+      // ── Left tower (3 wide × 5 floors) ──────────────────
+      const LT = centerX - 90;
+      for (let f = 0; f < 5; f++)
+        for (let c = -1; c <= 1; c++)
+          B.push(makeBlock(LT + c*W, base - H*0.5 - f*H, W, H,
+            (f > 0 && f < 4 && c === 0) ? 'glass' : 'brick'));
+      // Left spire
+      B.push(makeBlock(LT, base-5*H-10, 3*W+4, 18, 'wood'));
+      B.push(makeBlock(LT, base-5*H-26, 2*W,   14, 'wood'));
+      B.push(makeBlock(LT, base-5*H-38,   W+2, 10, 'wood'));
+      B.push(makeBlock(LT, base-5*H-47,     8,  8, 'stone'));
+
+      // ── Right tower (mirror) ─────────────────────────────
+      const RT = centerX + 90;
+      for (let f = 0; f < 5; f++)
+        for (let c = -1; c <= 1; c++)
+          B.push(makeBlock(RT + c*W, base - H*0.5 - f*H, W, H,
+            (f > 0 && f < 4 && c === 0) ? 'glass' : 'brick'));
+      B.push(makeBlock(RT, base-5*H-10, 3*W+4, 18, 'wood'));
+      B.push(makeBlock(RT, base-5*H-26, 2*W,   14, 'wood'));
+      B.push(makeBlock(RT, base-5*H-38,   W+2, 10, 'wood'));
+      B.push(makeBlock(RT, base-5*H-47,     8,  8, 'stone'));
+
+      // ── Central hall (3 wide × 3 floors) ─────────────────
+      for (let f = 0; f < 3; f++)
+        for (let c = -1; c <= 1; c++)
+          B.push(makeBlock(centerX + c*W, base - H*0.5 - f*H, W, H, f >= 1 ? 'glass' : 'brick'));
+
+      // ── Connecting bridge at floor 3 (inner edges of towers) ──
+      // Tower inner cols are at LT+W=centerX-66 & RT-W=centerX+66
+      // Bridge spans centerX-52 to centerX+52 (4 × 26px blocks)
+      const bY = base - 3*H - H*0.5;
+      for (let i = -2; i <= 1; i++)
+        B.push(makeBlock(centerX + i*26 + 13, bY, 26, H,
+          (i === -1 || i === 0) ? 'glass' : 'brick'));
+
+      // ── Cornice spanning full width ───────────────────────
+      B.push(makeBlock(centerX, base-3*H-H-7, RT - LT + 3*W, 12, 'wood'));
+
+      // ── Small central finial ─────────────────────────────
+      B.push(makeBlock(centerX, base-4*H-16, 44, 14, 'wood'));
+      B.push(makeBlock(centerX, base-4*H-28, 26, 10, 'stone'));
+      B.push(makeBlock(centerX, base-4*H-37,  8,  8, 'stone'));
+
+      return B;
     }
   },
   // ---- ancient ----
@@ -941,7 +976,7 @@ const WEAPONS = [
         if (!bomb.position) return;
         const center = { x:bomb.position.x, y:bomb.position.y };
         state.addEffect({ kind:'singularity', x:center.x, y:center.y, life:90, max:90 });
-        Matter.Composite.remove(state.world, bomb);
+        try { Matter.Composite.remove(state.world, bomb); } catch(e){}
         let frames = 0;
         const pull = setInterval(() => {
           Matter.Composite.allBodies(state.world).forEach(b => {
@@ -1498,6 +1533,11 @@ function tickDisasters(state) {
 // ─── MAIN (game.js) ──────────────────────────────────────────────────────────
 (function () {
   const M = Matter;
+  // Negative collision group — bodies sharing this group NEVER collide with each
+  // other, regardless of category/mask. Used for structure blocks so they interact
+  // only through their bonds, not through the contact solver. This prevents the
+  // "spawn explosion" where closely-packed scaled-up blocks push each other apart.
+  const STRUCTURE_GROUP = M.Body.nextGroup(true);
   const canvas = document.getElementById('stage');
   const ctx = canvas.getContext('2d');
 
@@ -1585,7 +1625,7 @@ function tickDisasters(state) {
       this.bonds.forEach(c => { if (c._settle > 0) c._settle = 0; });
     },
     getPower() { return this.power; },
-    getIntensity() { return parseInt(document.getElementById('intensity-slider')?.value||'5',10); },
+    getIntensity() { return parseInt(document.getElementById('i-slider')?.value||'5',10); },
     // Customization — read from sliders
     scale: 2.0,
     subdivLevel: 1.4,
@@ -1652,7 +1692,6 @@ function tickDisasters(state) {
       .filter(b => b.position && !b.isStatic)
       .map(b => b.position.x);
     // build at center then shift to chosen x
-    const tmpCenter = state.arena.centerX;
     const savedCenter = state.arena.centerX;
     // Find target x: prefer cursor if recently moved, else next free slot
     let targetX = pickFreeSlot(occupied);
@@ -1681,7 +1720,7 @@ function tickDisasters(state) {
     // If cursor is over the canvas AND clear of existing footprints, use it
     if (lastCursor && lastCursor.x > halfW && lastCursor.x < state.W - halfW) {
       const minD = occupiedX.length
-        ? Math.min(...occupiedX.map(o => Math.abs(o - lastCursor.x)))
+        ? occupiedX.reduce((min, o) => Math.min(min, Math.abs(o - lastCursor.x)), Infinity)
         : 9999;
       if (minD > halfW) return lastCursor.x;
     }
@@ -1692,7 +1731,7 @@ function tickDisasters(state) {
     for (let x = margin; x <= state.W - margin; x += 40) slots.push(x);
     let best = slots[0], bestDist = -1;
     slots.forEach(x => {
-      const d = occupiedX.length ? Math.min(...occupiedX.map(o => Math.abs(o - x))) : 9999;
+      const d = occupiedX.length ? occupiedX.reduce((min, o) => Math.min(min, Math.abs(o - x)), Infinity) : 9999;
       if (d > bestDist) { bestDist = d; best = x; }
     });
     return best;
@@ -1713,18 +1752,7 @@ function tickDisasters(state) {
   function spawnDistrict(id) {
     const d = DISTRICTS.find(x => x.id === id);
     if (!d) return;
-    state.structuresBuilt.forEach(b => { try { M.Composite.remove(world,b); } catch(e){} });
-    state.structuresBuilt = []; state.bonds.forEach(c => { try { M.Composite.remove(world,c); } catch(e){} }); state.bonds = [];
-    state.destroyed = 0;
-    M.Composite.allBodies(world).forEach(b => { if (b.isStatic) return; M.Composite.remove(world,b); });
-    M.Composite.allConstraints(world).forEach(c => { try { M.Composite.remove(world,c); } catch(e){} });
-    state.effects.length = 0; trailLayer.length = 0; state.shakeAmt = 0; state.shots = 0;
-    // Cancel any active disasters so a lingering tornado/gravity-flip can't wreck the fresh build
-    state.tornado = null;
-    state.tsunami = null;
-    if (state._gravTimer) { clearTimeout(state._gravTimer); state._gravTimer = null; }
-    state.gravFlip = null;
-    state.engine.world.gravity.y = parseFloat(document.getElementById('g-slider')?.value || '1');
+    clearWorldState();
     const bodies0 = d.build(state);
     const bodies = subdivideCluster(bodies0, state.subdivLevel, state.arena.groundY);
     bodies.forEach(b => { M.Composite.add(world,b); M.Sleeping.set(b,true); });
@@ -1753,6 +1781,11 @@ function tickDisasters(state) {
   }
 
   function bondNeighbors(bodies) {
+    // Put all structure bodies into the non-colliding group so adjacent blocks
+    // don't push each other apart through the contact solver. They interact
+    // exclusively through their constraint bonds while grouped.
+    bodies.forEach(b => { b.collisionFilter.group = STRUCTURE_GROUP; });
+
     const eps = 2;
     for (let i = 0; i < bodies.length; i++) {
       const a = bodies[i];
@@ -1789,7 +1822,12 @@ function tickDisasters(state) {
     // Stamp original bond count per body — used to gauge structural integrity.
     // Cascade weakening only fires once a body has lost a meaningful share of
     // its bonds, so isolated hits stay isolated.
-    bodies.forEach(b => { b._originalBondCount = (b._bonds || []).length; });
+    bodies.forEach(b => {
+      b._originalBondCount = (b._bonds || []).length;
+      // Blocks with no bonds (isolated pieces) revert to default collision so
+      // they behave normally and pile up rather than ghosting through things.
+      if (!b._bonds || b._bonds.length === 0) b.collisionFilter.group = 0;
+    });
   }
 
   function buildDisasterList() {
@@ -1809,19 +1847,26 @@ function tickDisasters(state) {
     });
   }
 
-  function spawnStructure() {
+  // Shared teardown: clears all physics bodies, bonds, effects and active disasters.
+  // Called by both spawnStructure and spawnDistrict to avoid duplicated logic.
+  function clearWorldState() {
     state.structuresBuilt.forEach(b => { try { M.Composite.remove(world,b); } catch(e){} });
-    state.structuresBuilt = []; state.bonds.forEach(c => { try { M.Composite.remove(world,c); } catch(e){} }); state.bonds = [];
+    state.structuresBuilt = [];
+    state.bonds.forEach(c => { try { M.Composite.remove(world,c); } catch(e){} });
+    state.bonds = [];
     state.destroyed = 0;
     M.Composite.allBodies(world).forEach(b => { if (b.isStatic) return; M.Composite.remove(world,b); });
     M.Composite.allConstraints(world).forEach(c => { try { M.Composite.remove(world,c); } catch(e){} });
     state.effects.length = 0; trailLayer.length = 0; state.shakeAmt = 0; state.shots = 0;
-    // Cancel any active disasters so a lingering tornado/gravity-flip can't wreck the fresh build
     state.tornado = null;
     state.tsunami = null;
     if (state._gravTimer) { clearTimeout(state._gravTimer); state._gravTimer = null; }
     state.gravFlip = null;
     state.engine.world.gravity.y = parseFloat(document.getElementById('g-slider')?.value || '1');
+  }
+
+  function spawnStructure() {
+    clearWorldState();
     const bodies0 = state.structure.build(state);
     scaleCluster(bodies0, state.scale, { x: state.arena.centerX, y: state.arena.groundY });
     const bodies = subdivideCluster(bodies0, state.subdivLevel, state.arena.groundY);
@@ -1949,6 +1994,7 @@ function tickDisasters(state) {
             const cx=b.position.x, cy=b.position.y;
             setTimeout(()=>{
               try { M.Composite.remove(world,b); } catch(e){}
+              const sIdx=state.structuresBuilt.indexOf(b); if(sIdx>=0) state.structuresBuilt.splice(sIdx,1);
               if (!state.options.debris) return;
               for (let i=0;i<5;i++) {
                 const shard=M.Bodies.polygon(cx+(Math.random()-.5)*8,cy+(Math.random()-.5)*8,3,4+Math.random()*4,{
@@ -2100,6 +2146,11 @@ function tickDisasters(state) {
       const a = c.bodyA, b = c.bodyB;
       if (a._bonds) a._bonds = a._bonds.filter(x => x !== c);
       if (b._bonds) b._bonds = b._bonds.filter(x => x !== c);
+
+      // When a block loses its last bond it becomes free debris — restore default
+      // collision so it can pile up and collide with other loose pieces normally.
+      if (a._bonds && a._bonds.length === 0) a.collisionFilter.group = 0;
+      if (b._bonds && b._bonds.length === 0) b.collisionFilter.group = 0;
 
       // ── Localized damage model ─────────────────────────────────────────
       // Damage is the share of a body's original bonds that have snapped.
